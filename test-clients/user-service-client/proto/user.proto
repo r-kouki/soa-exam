@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package user;
+
+// Service definition for User operations
+service UserService {
+  rpc CreateUserProfile(CreateUserProfileRequest) returns (UserProfileResponse);
+  rpc GetUserProfile(GetUserProfileRequest) returns (UserProfileResponse);
+  rpc UpdateUserProfile(UpdateUserProfileRequest) returns (UserProfileResponse);
+  rpc DeleteUserProfile(DeleteUserProfileRequest) returns (DeleteUserResponse);
+  // Future: rpc GetUsers(GetUsersRequest) returns (UsersListResponse);
+  // Future: rpc AuthenticateUser(AuthRequest) returns (AuthResponse); // Or handle via Keycloak directly
+}
+
+// User Profile message
+message UserProfile {
+  string id = 1; // DB generated ID
+  string auth_id = 2; // ID from Keycloak
+  string email = 3;
+  string username = 4;
+  string first_name = 5;
+  string last_name = 6;
+  int32 age = 7;
+  string gender = 8;
+  repeated string interests = 9;
+  string bio = 10;
+  repeated string photos = 11; // URLs to photos
+  string city = 12;
+  string country = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  // Add other profile fields as needed: e.g., looking_for, height, education, etc.
+}
+
+// Request and Response messages
+
+message CreateUserProfileRequest {
+  string auth_id = 1; // From Keycloak after user registration/login
+  string email = 2;
+  string username = 3;
+  string first_name = 4;
+  string last_name = 5;
+  int32 age = 6;
+  string gender = 7;
+  repeated string interests = 8;
+  string bio = 9;
+  repeated string photos = 10;
+  string city = 11;
+  string country = 12;
+}
+
+message GetUserProfileRequest {
+  string user_id = 1; // Can be internal DB ID or auth_id
+}
+
+message UpdateUserProfileRequest {
+  string user_id = 1;
+  optional string email = 2;
+  optional string username = 3;
+  optional string first_name = 4;
+  optional string last_name = 5;
+  optional int32 age = 6;
+  optional string gender = 7;
+  repeated string interests = 8; // Full list to replace existing
+  optional string bio = 9;
+  repeated string photos = 10; // Full list to replace existing
+  optional string city = 11;
+  optional string country = 12;
+}
+
+message DeleteUserProfileRequest {
+  string user_id = 1;
+}
+
+message UserProfileResponse {
+  UserProfile profile = 1;
+}
+
+message DeleteUserResponse {
+  string message = 1;
+  bool success = 2;
+} 

@@ -1,0 +1,37 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: dating-app-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db # Persists data in a volume
+    networks:
+      - app-network
+
+  user-service:
+    build:
+      context: ./microservices/user-service
+      dockerfile: Dockerfile
+    container_name: dating-app-user-service
+    ports:
+      - "50051:50051" # Exposes the gRPC port
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/dating_app_user_db
+      - USER_SERVICE_PORT=50051
+      # Add other necessary environment variables from user-service/.env if they are not defaults
+      # e.g. JWT_SECRET, KEYCLOAK_URL etc. For now, keeping it minimal.
+    depends_on:
+      - mongodb
+    volumes:
+      - ./microservices/user-service:/usr/src/app # Mounts local code for development (optional, good for dev)
+      - /usr/src/app/node_modules # Excludes node_modules from being overwritten by local mount
+    networks:
+      - app-network
+
+volumes:
+  mongodb_data: # Defines the named volume for MongoDB
+
+networks:
+  app-network:
+    driver: bridge 
