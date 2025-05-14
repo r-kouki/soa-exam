@@ -4,6 +4,7 @@ const protoLoader = require('@grpc/proto-loader');
 const path = require('path');
 const connectDB = require('./config/database');
 const Swipe = require('./models/SwipeModel');
+const Match = require('./models/MatchModel'); // Import MatchModel
 
 const MATCHING_SERVICE_PORT = process.env.MATCHING_SERVICE_PORT || 50052;
 const USER_SERVICE_GRPC_URL = process.env.USER_SERVICE_GRPC_URL || 'localhost:50051';
@@ -96,7 +97,7 @@ const matchingServiceMethods = {
 
             let isMatch = false;
             let matchedUserProfile = null;
-            let matchId = null; // Placeholder for a potential match ID from a MatchModel
+            let newMatchId = null;
 
             if (directionForDB === 'LIKE') {
                 // Check if the other person (swiped_user_id) has also liked the swiper_user_id
@@ -108,18 +109,39 @@ const matchingServiceMethods = {
 
                 if (mutualLike) {
                     isMatch = true;
-                    console.log(`MATCH FORMED: ${swiper_user_id} and ${swiped_user_id}`);
-                    // TODO: Optionally create a Match document in a MatchModel collection
-                    // For now, matchId can be a composite of the two user IDs or a new UUID
+                    console.log(`MATCH FORMED between: ${swiper_user_id} and ${swiped_user_id}`);
 
-                    // Fetch the profile of the user who was just swiped (and formed the match)
+                    // Create a Match document
+                    // The pre-save hook in MatchModel will sort userIds
+                    const matchUserIds = [swiper_user_id, swiped_user_id];
+                    try {
+                        const existingMatch = await Match.findOne({ userIds: {$all: matchUserIds} });
+                        if (!existingMatch) {
+                            const newMatch = new Match({ userIds: matchUserIds });
+                            const savedMatch = await newMatch.save();
+                            newMatchId = savedMatch._id.toString();
+                            console.log(`New Match document created with ID: ${newMatchId}`);
+                        } else {
+                            newMatchId = existingMatch._id.toString(); // Match already recorded
+                            console.log(`Match document already exists with ID: ${newMatchId}`);
+                        }
+                    } catch (matchError) {
+                        if (matchError.code === 11000) { // Duplicate key error for Match, if pre-save sort and findOne didn't catch it
+                            console.warn(`Attempted to create a duplicate Match document for users: ${matchUserIds.join(', ')}. This should ideally be caught by findOne.`);
+                             // Try to find it again to be sure
+                            const foundMatch = await Match.findOne({userIds: {$all: matchUserIds.sort()}});
+                            if(foundMatch) newMatchId = foundMatch._id.toString();
+
+                        } else {
+                            console.error("Error creating or finding Match document:", matchError);
+                            // Non-critical for swipe response, but should be logged/monitored
+                        }
+                    }
+                    
                     try {
                         const profileResponse = await new Promise((resolve, reject) => {
                             userServiceClient.getUserProfile({ user_id: swiped_user_id }, (error, response) => {
-                                if (error) {
-                                    console.error(`Error fetching profile for matched user ${swiped_user_id}:`, error);
-                                    return reject(error); // Propagate gRPC error
-                                }
+                                if (error) return reject(error);
                                 resolve(response);
                             });
                         });
@@ -127,8 +149,7 @@ const matchingServiceMethods = {
                             matchedUserProfile = profileResponse.profile;
                         }
                     } catch (profileError) {
-                        // Log error but continue, response can still indicate a match without full profile if user-service fails
-                        console.error(`Failed to fetch profile for matched user ${swiped_user_id}, but match still occurred.`);
+                        console.error(`Failed to fetch profile for matched user ${swiped_user_id}:`, profileError);
                     }
                 }
             }
@@ -136,7 +157,7 @@ const matchingServiceMethods = {
             callback(null, {
                 success: true,
                 is_match: isMatch,
-                match_id: matchId, // Will be null for now
+                match_id: newMatchId,
                 matched_user_profile: matchedUserProfile
             });
 
@@ -168,13 +189,59 @@ const matchingServiceMethods = {
     },
     getConfirmedMatches: async (call, callback) => {
         console.log('GetConfirmedMatches called for user:', call.request.user_id);
-        // TODO: Implement logic to retrieve confirmed matches.
-        // 1. Find all mutual LIKE swipes involving call.request.user_id.
-        //    - Query SwipeModel for swipes where swiperUserId = user_id AND direction = LIKE.
-        //    - For each such swipe, check if swipedUserId also LIKED user_id.
-        // 2. For each confirmed match, get the profile of the other user from user-service.
-        // 3. Return list of matched user profiles.
-        callback({ code: grpc.status.UNIMPLEMENTED, message: 'GetConfirmedMatches not implemented' });
+        const { user_id } = call.request;
+
+        if (!user_id) {
+            return callback({
+                code: grpc.status.INVALID_ARGUMENT,
+                message: 'user_id is required to get confirmed matches.'
+            });
+        }
+
+        try {
+            // Find all matches where the requesting user's ID is in the userIds array
+            const matches = await Match.find({ userIds: user_id });
+
+            if (!matches || matches.length === 0) {
+                return callback(null, { matches: [] }); // No matches found
+            }
+
+            const matchedUserProfiles = [];
+
+            for (const match of matches) {
+                // Identify the other user in the match
+                const otherUserId = match.userIds.find(id => id !== user_id);
+                if (!otherUserId) continue; // Should not happen if data is consistent
+
+                try {
+                    const profileResponse = await new Promise((resolve, reject) => {
+                        userServiceClient.getUserProfile({ user_id: otherUserId }, (error, response) => {
+                            if (error) {
+                                console.error(`Error fetching profile for matched user ${otherUserId}:`, error);
+                                return reject(error); // If a profile can't be fetched, we might skip this match or return partial data
+                            }
+                            resolve(response);
+                        });
+                    });
+
+                    if (profileResponse && profileResponse.profile) {
+                        matchedUserProfiles.push(profileResponse.profile);
+                    }
+                } catch (profileError) {
+                    console.error(`Skipping match with ${otherUserId} due to error fetching profile:`, profileError.message);
+                    // Decide if a partial list is okay or if the whole operation should fail
+                }
+            }
+            
+            callback(null, { matches: matchedUserProfiles });
+
+        } catch (error) {
+            console.error("Error getting confirmed matches:", error);
+            callback({
+                code: grpc.status.INTERNAL,
+                message: 'Error retrieving confirmed matches: ' + error.message
+            });
+        }
     }
 };
 

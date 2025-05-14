@@ -75,15 +75,21 @@ The goal is to build a scalable and maintainable online dating platform using mi
 
 The project currently has the following components set up and functional to a basic degree:
 
-*   **API Gateway**: Exposes a GraphQL endpoint. Can currently query user profiles (from `user-service`) and submit swipes (to `matching-service`).
+*   **API Gateway**: Exposes a GraphQL endpoint. Can currently query user profiles (from `user-service`), submit swipes (to `matching-service`), and retrieve confirmed matches for a user (from `matching-service`).
 *   **User Service**: Manages user profiles with CRUD operations via gRPC. Connects to its own MongoDB database (`dating_app_user_db`).
-*   **Matching Service**: Handles swipe submissions via gRPC. Stores swipes in its own MongoDB database (`dating_app_matching_db`). Can detect a mutual match and attempts to fetch the matched user's profile from the `user-service`.
+*   **Matching Service**: 
+    *   Handles swipe submissions via gRPC. Stores swipes in its own MongoDB database (`dating_app_matching_db`).
+    *   Detects mutual matches upon swipe and creates a `Match` document in its database.
+    *   Provides a gRPC method to retrieve confirmed matches for a user, fetching profile details from the `user-service`.
 *   **Keycloak**: Set up and running, with a realm (`dating-app-realm`) and a client (`dating-app-gateway`) configured. Not yet integrated into the API Gateway's request authentication flow.
 *   **MongoDB**: A single instance running, hosting separate databases for the user and matching services.
 *   **Docker Compose**: All services (API Gateway, User Service, Matching Service, Keycloak, MongoDB) are containerized and orchestrated via `docker-compose.yml`.
 *   **Basic Testing**:
-    *   `user-service` tested via a gRPC client script.
-    *   API Gateway's `getUserProfile` (calling `user-service`) and `submitSwipe` (calling `matching-service`) GraphQL endpoints tested manually.
+    *   `user-service` tested via a gRPC client script for creating users.
+    *   API Gateway's GraphQL endpoints tested manually for:
+        *   `getUserProfile` (calling `user-service`)
+        *   `submitSwipe` (calling `matching-service`)
+        *   `getConfirmedMatches` (calling `matching-service`)
 
 ### System Components Diagram (Current)
 

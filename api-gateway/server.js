@@ -84,6 +84,7 @@ const typeDefs = gql`
     type Query {
         helloGateway: String
         getUserProfile(userId: ID!): UserProfile
+        getConfirmedMatches(userId: ID!): [UserProfile]
     }
 
     type Mutation {
@@ -107,6 +108,20 @@ const resolvers = {
                         reject(new Error(error.details || 'Error fetching user profile'));
                     }
                     resolve(response ? response.profile : null);
+                });
+            });
+        },
+        getConfirmedMatches: async (_, { userId }) => {
+            console.log(`API Gateway: getConfirmedMatches called for userId: ${userId}`);
+            return new Promise((resolve, reject) => {
+                matchingServiceClient.getConfirmedMatches({ user_id: userId }, (error, response) => {
+                    if (error) {
+                        console.error('Error fetching confirmed matches from matching-service:', error);
+                        reject(new Error(error.details || 'Error fetching confirmed matches'));
+                    }
+                    // The gRPC response is { matches: [UserProfile] }
+                    // The UserProfile structure from gRPC matches the GraphQL UserProfile type
+                    resolve(response ? response.matches : []);
                 });
             });
         },
