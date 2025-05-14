@@ -1,0 +1,25 @@
+{
+  "name": "chat-service",
+  "version": "1.0.0",
+  "description": "Chat service for the online dating app",
+  "main": "chatService.js",
+  "scripts": {
+    "start": "node chatService.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "microservice",
+    "chat",
+    "websockets",
+    "dating-app"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.1",
+    "@grpc/proto-loader": "^0.7.10",
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.3.2",
+    "ws": "^8.17.0"
+  }
+}
