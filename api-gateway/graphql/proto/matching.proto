@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package matching;
+
+import "user.proto"; // Importing user profile definition
+
+// Service definition for Matching operations
+service MatchingService {
+  rpc SubmitSwipe(SwipeRequest) returns (SwipeResponse);
+  rpc GetPotentialMatches(PotentialMatchesRequest) returns (stream user.UserProfile); // Streams potential user profiles
+  rpc GetConfirmedMatches(ConfirmedMatchesRequest) returns (ConfirmedMatchesResponse);
+}
+
+// Enum for swipe direction
+enum SwipeDirection {
+  SWIPE_DIRECTION_UNSPECIFIED = 0;
+  LIKE = 1;
+  DISLIKE = 2;
+  // SUPER_LIKE = 3; // Future enhancement
+}
+
+message SwipeRequest {
+  string swiper_user_id = 1;   // The user performing the swipe (auth_id)
+  string swiped_user_id = 2;   // The user being swiped on (auth_id)
+  SwipeDirection direction = 3;
+}
+
+message SwipeResponse {
+  bool success = 1;
+  bool is_match = 2;        // True if this swipe resulted in a new match
+  string match_id = 3;      // ID of the match if one was created/exists
+  user.UserProfile matched_user_profile = 4; // Profile of the matched user, if a match occurred
+}
+
+message PotentialMatchesRequest {
+  string user_id = 1;       // The user requesting potential matches (auth_id)
+  int32 limit = 2;          // Max number of profiles to return
+  // Add other filtering criteria: location, age_range, interests, etc.
+  // string last_seen_profile_id = 3; // For pagination
+}
+
+// PotentialMatchesResponse will be a stream of user.UserProfile directly from the RPC definition
+
+message ConfirmedMatch {
+  string match_id = 1;
+  user.UserProfile user1 = 2; // UserProfile might be too heavy; consider just IDs and key info
+  user.UserProfile user2 = 3; // Or a MatchUserProfile (subset of UserProfile)
+  string created_at = 4;
+  string last_interaction_at = 5; // For chat service integration later
+}
+
+message ConfirmedMatchesRequest {
+  string user_id = 1;       // The user requesting their confirmed matches (auth_id)
+}
+
+message ConfirmedMatchesResponse {
+  repeated user.UserProfile matches = 1; // List of profiles the user has matched with
+  // Alternatively, could be a list of ConfirmedMatch objects if more match-specific data is needed here
+}
+
+// Could define a lighter UserProfile for matching context if needed
+// message MatchUserProfile {
+//   string user_id = 1; // auth_id
+//   string username = 2;
+//   string first_name = 3;
+//   int32 age = 4;
+//   string primary_photo_url = 5;
+//   // ... other essential details for a match card
+// } 

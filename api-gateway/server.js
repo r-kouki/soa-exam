@@ -18,6 +18,7 @@ const userPackageDefinition = protoLoader.loadSync(USER_PROTO_PATH, {
     enums: String,
     defaults: true,
     oneofs: true,
+    includeDirs: [path.join(__dirname, 'graphql/proto')]
 });
 const userProto = grpc.loadPackageDefinition(userPackageDefinition).user;
 
@@ -27,15 +28,34 @@ const userServiceClient = new userProto.UserService(
     grpc.credentials.createInsecure()
 );
 
-// GraphQL Schema (Placeholder)
+// Path to Matching service proto file
+const MATCHING_PROTO_PATH = path.join(__dirname, 'graphql/proto/matching.proto');
+const MATCHING_SERVICE_GRPC_URL = process.env.MATCHING_SERVICE_GRPC_URL || 'localhost:50052';
+
+// Load Matching Proto
+const matchingPackageDefinition = protoLoader.loadSync(MATCHING_PROTO_PATH, {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true,
+    includeDirs: [path.join(__dirname, 'graphql/proto')]
+});
+const matchingProto = grpc.loadPackageDefinition(matchingPackageDefinition).matching;
+
+// Create gRPC client for Matching Service
+const matchingServiceClient = new matchingProto.MatchingService(
+    MATCHING_SERVICE_GRPC_URL,
+    grpc.credentials.createInsecure()
+);
+
+// GraphQL Schema
 const typeDefs = gql`
-    type Query {
-        _empty: String # Placeholder to ensure Query type is defined
-        helloGateway: String
-        getUserProfile(userId: ID!): UserProfile
+    enum SwipeDirectionGQL {
+        LIKE
+        DISLIKE
     }
 
-    # We will extend this later with User types and queries
     type UserProfile {
         id: ID!
         auth_id: String!
@@ -53,9 +73,29 @@ const typeDefs = gql`
         created_at: String!
         updated_at: String!
     }
+
+    type SwipeResponseGQL {
+        success: Boolean!
+        is_match: Boolean!
+        match_id: String # Can be null
+        matched_user_profile: UserProfile # Can be null if not a match or error fetching
+    }
+
+    type Query {
+        helloGateway: String
+        getUserProfile(userId: ID!): UserProfile
+    }
+
+    type Mutation {
+        submitSwipe(
+            swiperUserId: ID!,
+            swipedUserId: ID!,
+            direction: SwipeDirectionGQL!
+        ): SwipeResponseGQL
+    }
 `;
 
-// GraphQL Resolvers (Placeholder)
+// GraphQL Resolvers
 const resolvers = {
     Query: {
         helloGateway: () => 'Hello from API Gateway!',
@@ -64,17 +104,44 @@ const resolvers = {
                 userServiceClient.getUserProfile({ user_id: userId }, (error, response) => {
                     if (error) {
                         console.error('Error fetching user profile from user-service:', error);
-                        // Map gRPC error to GraphQL error
-                        // This is a simple mapping; more sophisticated error handling would be needed
                         reject(new Error(error.details || 'Error fetching user profile'));
                     }
-                    console.log("Received from user-service:", response)
                     resolve(response ? response.profile : null);
                 });
             });
         },
     },
-    // We will add mutations later
+    Mutation: {
+        submitSwipe: async (_, { swiperUserId, swipedUserId, direction }) => {
+            // Map GraphQL enum to gRPC enum value
+            // Note: matchingProto.SwipeDirection values are numbers (LIKE=1, DISLIKE=2)
+            let grpcDirection;
+            if (direction === 'LIKE') {
+                grpcDirection = 1; // matchingProto.SwipeDirection.LIKE if loaded fully, but numbers are safer if not dynamically accessing enum values
+            } else if (direction === 'DISLIKE') {
+                grpcDirection = 2; // matchingProto.SwipeDirection.DISLIKE
+            } else {
+                throw new Error('Invalid swipe direction');
+            }
+
+            const swipeRequest = {
+                swiper_user_id: swiperUserId,
+                swiped_user_id: swipedUserId,
+                direction: grpcDirection
+            };
+
+            return new Promise((resolve, reject) => {
+                matchingServiceClient.submitSwipe(swipeRequest, (error, response) => {
+                    if (error) {
+                        console.error('Error submitting swipe to matching-service:', error);
+                        reject(new Error(error.details || 'Error submitting swipe'));
+                    }
+                    // The gRPC response for matched_user_profile is already in the correct UserProfile structure
+                    resolve(response);
+                });
+            });
+        }
+    }
 };
 
 async function startServer() {

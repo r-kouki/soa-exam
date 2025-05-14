@@ -56,15 +56,37 @@ services:
     environment:
       - API_GATEWAY_PORT=4000
       - USER_SERVICE_GRPC_URL=user-service:50051 # Connect to user-service by its service name
+      - MATCHING_SERVICE_GRPC_URL=matching-service:50052 # Added for future use by gateway
       - KEYCLOAK_URL=http://keycloak:8080 # Connect to keycloak by its service name
       - KEYCLOAK_REALM=dating-app-realm
       - KEYCLOAK_CLIENT_ID=dating-app-gateway
       - KEYCLOAK_CLIENT_SECRET=wsTFdDURHKvfEituRVBfm7ymTh72pzWk # The secret you saved
     depends_on:
       - user-service
+      - matching-service # Added dependency
       - keycloak
     volumes:
       - ./api-gateway:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - app-network
+
+  matching-service:
+    build:
+      context: ./microservices/matching-service
+      dockerfile: Dockerfile
+    container_name: dating-app-matching-service
+    ports:
+      - "50052:50052" # Exposes its gRPC port
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/dating_app_matching_db # Uses same mongo instance, diff DB
+      - MATCHING_SERVICE_PORT=50052
+      - USER_SERVICE_GRPC_URL=user-service:50051 # Needs to talk to user-service
+    depends_on:
+      - mongodb
+      - user-service
+    volumes:
+      - ./microservices/matching-service:/usr/src/app
       - /usr/src/app/node_modules
     networks:
       - app-network

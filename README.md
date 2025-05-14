@@ -69,4 +69,73 @@ The goal is to build a scalable and maintainable online dating platform using mi
 
 ## Documentation
 
-(Links to detailed documentation for each service, API contracts, .proto files, etc., to be added) 
+(Links to detailed documentation for each service, API contracts, .proto files, etc., to be added)
+
+## Current Implementation Status (As of User & Matching Service Setup)
+
+The project currently has the following components set up and functional to a basic degree:
+
+*   **API Gateway**: Exposes a GraphQL endpoint. Can currently query user profiles (from `user-service`) and submit swipes (to `matching-service`).
+*   **User Service**: Manages user profiles with CRUD operations via gRPC. Connects to its own MongoDB database (`dating_app_user_db`).
+*   **Matching Service**: Handles swipe submissions via gRPC. Stores swipes in its own MongoDB database (`dating_app_matching_db`). Can detect a mutual match and attempts to fetch the matched user's profile from the `user-service`.
+*   **Keycloak**: Set up and running, with a realm (`dating-app-realm`) and a client (`dating-app-gateway`) configured. Not yet integrated into the API Gateway's request authentication flow.
+*   **MongoDB**: A single instance running, hosting separate databases for the user and matching services.
+*   **Docker Compose**: All services (API Gateway, User Service, Matching Service, Keycloak, MongoDB) are containerized and orchestrated via `docker-compose.yml`.
+*   **Basic Testing**:
+    *   `user-service` tested via a gRPC client script.
+    *   API Gateway's `getUserProfile` (calling `user-service`) and `submitSwipe` (calling `matching-service`) GraphQL endpoints tested manually.
+
+### System Components Diagram (Current)
+
+```mermaid
+graph TD
+    subgraph "Client Interaction (Manual Testing)"
+        UserClient[User via GraphQL Playground/gRPC Client]
+    end
+
+    subgraph "Orchestration"
+        DockerCompose[docker-compose.yml]
+    end
+
+    subgraph "Authentication Service (Setup)"
+        KeycloakService[Keycloak]
+    end
+    
+    subgraph "Databases (Single MongoDB Instance)"
+        MongoDBInstance[(MongoDB)]
+        UserDB[("dating_app_user_db")]
+        MatchingDB[("dating_app_matching_db")]
+    end
+
+    APIGateway["API Gateway (Node.js)
+    GraphQL (Apollo)
+    gRPC Clients (User, Matching)"]
+
+    UserService["User Service (Node.js)
+    gRPC Server
+    Mongoose"] 
+    
+    MatchingService["Matching Service (Node.js)
+    gRPC Server
+    Mongoose
+    gRPC Client (User)"]
+
+    UserClient -->|GraphQL HTTP| APIGateway
+    UserClient -->|gRPC (test script)| UserService
+    
+    APIGateway -->|gRPC| UserService
+    APIGateway -->|gRPC| MatchingService
+    
+    UserService -->|CRUD| UserDB
+    MatchingService -->|CRUD| MatchingDB
+    MatchingService -->|gRPC GetUserProfile| UserService
+
+    DockerCompose -.-> APIGateway
+    DockerCompose -.-> UserService
+    DockerCompose -.-> MatchingService
+    DockerCompose -.-> KeycloakService
+    DockerCompose -.-> MongoDBInstance
+
+    MongoDBInstance --- UserDB
+    MongoDBInstance --- MatchingDB
+``` 
