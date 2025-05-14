@@ -19,18 +19,59 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/dating_app_user_db
       - USER_SERVICE_PORT=50051
-      # Add other necessary environment variables from user-service/.env if they are not defaults
-      # e.g. JWT_SECRET, KEYCLOAK_URL etc. For now, keeping it minimal.
+      # KEYCLOAK_URL will be http://keycloak:8080 if user-service needs to call Keycloak directly
     depends_on:
       - mongodb
     volumes:
-      - ./microservices/user-service:/usr/src/app # Mounts local code for development (optional, good for dev)
-      - /usr/src/app/node_modules # Excludes node_modules from being overwritten by local mount
+      - ./microservices/user-service:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - app-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest # Use a specific version in production
+    container_name: dating-app-keycloak
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      # - KC_PROXY=edge # Uncomment if running behind a reverse proxy
+      # - KC_HOSTNAME_STRICT=false # For development, if facing hostname issues
+      # - KC_HTTP_ENABLED=true # If you want to run on HTTP for dev, default is HTTPS on 8443 unless start-dev
+      # - KC_DB=postgres # Example if you want to use PostgreSQL for Keycloak
+    ports:
+      - "8080:8080"
+    command: start-dev # For development. For production, use 'start' with proper configuration.
+    networks:
+      - app-network
+    # volumes:
+      # - keycloak_data:/opt/keycloak/data # Optional: for persisting Keycloak data
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: dating-app-api-gateway
+    ports:
+      - "4000:4000"
+    environment:
+      - API_GATEWAY_PORT=4000
+      - USER_SERVICE_GRPC_URL=user-service:50051 # Connect to user-service by its service name
+      - KEYCLOAK_URL=http://keycloak:8080 # Connect to keycloak by its service name
+      - KEYCLOAK_REALM=dating-app-realm
+      - KEYCLOAK_CLIENT_ID=dating-app-gateway
+      - KEYCLOAK_CLIENT_SECRET=wsTFdDURHKvfEituRVBfm7ymTh72pzWk # The secret you saved
+    depends_on:
+      - user-service
+      - keycloak
+    volumes:
+      - ./api-gateway:/usr/src/app
+      - /usr/src/app/node_modules
     networks:
       - app-network
 
 volumes:
-  mongodb_data: # Defines the named volume for MongoDB
+  mongodb_data:
+  # keycloak_data: # Optional: define volume if used above
 
 networks:
   app-network:
