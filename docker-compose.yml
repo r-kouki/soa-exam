@@ -39,7 +39,7 @@ services:
       # - KC_HTTP_ENABLED=true # If you want to run on HTTP for dev, default is HTTPS on 8443 unless start-dev
       # - KC_DB=postgres # Example if you want to use PostgreSQL for Keycloak
     ports:
-      - "8080:8080"
+      - "8081:8080"
     command: start-dev # For development. For production, use 'start' with proper configuration.
     networks:
       - app-network
@@ -60,7 +60,7 @@ services:
       - CHAT_SERVICE_GRPC_URL=chat-service:50053
       - CHAT_SERVICE_WS_URL=ws://chat-service:3001
       - NOTIFICATION_SERVICE_GRPC_URL=notification-service:50054
-      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_URL=http://keycloak:8081
       - KEYCLOAK_REALM=dating-app-realm
       - KEYCLOAK_CLIENT_ID=dating-app-gateway
       - KEYCLOAK_CLIENT_SECRET=wsTFdDURHKvfEituRVBfm7ymTh72pzWk # The secret you saved
