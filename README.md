@@ -29,6 +29,12 @@ The goal is to build a scalable and maintainable online dating platform using mi
     *   Sends real-time notifications to users (e.g., new matches, new messages, profile views).
     *   May use various channels like push notifications, email.
     *   Exposes gRPC APIs.
+*   **Event Service**:
+    *   Manages event topics like "Available Tonight" or "Coders Night".
+    *   Implements gRPC endpoints for creating events, subscribing, and sending notifications.
+    *   Uses Kafka for event publishing and consuming.
+    *   Integrates with `notification-service` to notify subscribers about events.
+    *   Stores event data and subscriptions in MongoDB (`dating_app_event_db`).
 *   **Databases**: Each core microservice (User, Matching, Chat) will have its own dedicated database to ensure loose coupling.
 *   **Message Broker (e.g., Kafka)**: For asynchronous tasks like updating recommendations, sending batch notifications, or logging events.
 *   **Keycloak**: Provides robust authentication and authorization for the platform.
@@ -56,6 +62,7 @@ The goal is to build a scalable and maintainable online dating platform using mi
     *   `matching-service`
     *   `chat-service`
     *   `notification-service`
+    *   `event-service`
 *   **gRPC**: For high-performance, type-safe inter-service communication.
 *   **REST/GraphQL**: For client-facing APIs via the API Gateway.
 *   **Databases**: (To be decided, e.g., PostgreSQL for relational data like user profiles, MongoDB for flexible data like chat messages or matching preferences, Redis for caching/session management)
@@ -76,12 +83,13 @@ The goal is to build a scalable and maintainable online dating platform using mi
 -   **API Gateway (`api-gateway`)**:
     -   Acts as the single entry point for all client requests.
     -   GraphQL interface for client-server communication.
-    -   Routes requests to appropriate microservices (`user-service`, `matching-service`, `chat-service`).
+    -   Routes requests to appropriate microservices (`user-service`, `matching-service`, `chat-service`, `notification-service`, `event-service`).
     -   Currently handles:
         -   User profile creation and retrieval (via `user-service`).
         -   Submitting swipes and detecting matches (via `matching-service`).
         -   Retrieving confirmed matches for a user (via `matching-service`).
         -   Potentially assists clients in establishing WebSocket connections to the `chat-service`.
+        -   Creating and managing event topics and subscriptions (via `event-service`).
     -   Integrated with Keycloak for authentication (initial setup, further integration pending).
 -   **User Service (`microservices/user-service`)**:
     -   Manages user profiles (creation, retrieval, updates).
@@ -94,17 +102,27 @@ The goal is to build a scalable and maintainable online dating platform using mi
     -   Stores swipe data and confirmed matches in MongoDB (`dating_app_matching_db`).
     -   `SwipeModel` and `MatchModel` defined with Mongoose.
     -   gRPC service for `submitSwipe` and `getConfirmedMatches`.
+    -   Integrated with `notification-service` to alert users about new matches.
 -   **Chat Service (`microservices/chat-service`)**:
     -   Manages real-time messaging between matched users using WebSockets.
     -   Stores chat messages in MongoDB (`dating_app_chat_db`).
     -   `ChatMessageModel` defined with Mongoose.
-    -   Provides a basic gRPC endpoint (`GetMessageHistory`) for fetching chat history (implementation pending).
+    -   Provides a basic gRPC endpoint (`GetMessageHistory`) for fetching chat history.
     -   WebSocket server allows clients to connect, send, and receive messages within chat rooms.
 -   **Notification Service (`microservices/notification-service`)**:
     -   Handles the delivery of notifications to users.
     -   Implements a gRPC service with a `SendNotification` endpoint.
     -   Supports various notification types (`NEW_MATCH`, `NEW_MESSAGE`, `PROFILE_VISIT`).
     -   Provides a foundation for integration with external notification systems (email, push, SMS).
+-   **Event Service (`microservices/event-service`)**:
+    -   Manages event topics like "Available Tonight" or "Coders Night".
+    -   Implements gRPC endpoints for creating events, subscribing, and sending notifications.
+    -   Uses Kafka for event publishing and consuming.
+    -   Integrates with `notification-service` to notify subscribers about events.
+    -   Stores event data and subscriptions in MongoDB (`dating_app_event_db`).
+-   **Message Broker**:
+    -   Kafka and Zookeeper services for async communication and event streaming.
+    -   Topics for event notifications and subscription management.
 -   **Keycloak**: 
     -   Set up and running, with a realm (`dating-app-realm`) and a client (`dating-app-gateway`) configured. Not yet integrated into the API Gateway's request authentication flow.
 
@@ -112,22 +130,45 @@ The goal is to build a scalable and maintainable online dating platform using mi
 
 ```mermaid
 graph TD
-    A[Client App] --> B{API Gateway (GraphQL)};
-    B --> C[User Service (gRPC)];
-    B --> D[Matching Service (gRPC)];
-    B --> E[Chat Service (gRPC/WebSocket)];
-    B --> F[Keycloak (OAuth2/OIDC)];
-    B --> J[Notification Service (gRPC)];
+    A[Client App] --> B{API Gateway <br>GraphQL};
+    B --> C[User Service <br>gRPC];
+    B --> D[Matching Service <br>gRPC];
+    B --> E[Chat Service <br>gRPC/WebSocket];
+    B --> F[Keycloak <br>OAuth2/OIDC];
+    B --> J[Notification Service <br>gRPC];
+    B --> K[Event Service <br>gRPC];
     C --> G[(MongoDB - User DB)];
     D --> H[(MongoDB - Matching DB)];
     E --> I[(MongoDB - Chat DB)];
-    F --> G; # Keycloak might store user info linked to User DB
+    J --> J1[(MongoDB <br>Notification Store)];
+    K --> K1[(MongoDB - Event DB)];
+    
+    D --> J;
+    K --> J;
+    K <--> M[(Kafka)];
+    M <--> N[Zookeeper];
+    
+    F --> G;
 
     subgraph Microservices
         C
         D
         E
         J
+        K
+    end
+    
+    subgraph Databases
+        G
+        H
+        I
+        J1
+        K1
+    end
+    
+    subgraph "Message Broker"
+        M
+        N
     end
 ``` 
 
@@ -146,7 +187,13 @@ graph TD
     -   Basic gRPC service for sending notifications to users.
     -   Supports different notification types (e.g., `NEW_MATCH`, `NEW_MESSAGE`, `PROFILE_VISIT`).
     -   Currently implements a stubbed notification delivery system.
--   **Overall**: 
+-   **Event Service**:
+    -   Create event topics like "Available Tonight" using the `createEvent` GraphQL mutation.
+    -   Subscribe users to events with the `subscribeToEvent` mutation.
+    -   Send notifications to all subscribers of an event topic.
+    -   Retrieve events and user subscriptions.
+    -   Verify Kafka message publishing and consumption.
+-   **Overall**:
 
 ## Future Work
 

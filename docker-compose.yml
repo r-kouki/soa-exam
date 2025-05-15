@@ -60,6 +60,7 @@ services:
       - CHAT_SERVICE_GRPC_URL=chat-service:50053
       - CHAT_SERVICE_WS_URL=ws://chat-service:3001
       - NOTIFICATION_SERVICE_GRPC_URL=notification-service:50054
+      - EVENT_SERVICE_GRPC_URL=event-service:50055
       - KEYCLOAK_URL=http://keycloak:8081
       - KEYCLOAK_REALM=dating-app-realm
       - KEYCLOAK_CLIENT_ID=dating-app-gateway
@@ -130,6 +131,58 @@ services:
     volumes:
       - ./microservices/notification-service:/usr/src/app
       - /usr/src/app/node_modules
+    networks:
+      - app-network
+
+  event-service:
+    build:
+      context: ./microservices/event-service
+      dockerfile: Dockerfile
+    container_name: dating-app-event-service
+    ports:
+      - "50055:50055" # gRPC port
+    environment:
+      - EVENT_SERVICE_GRPC_PORT=50055
+      - MONGODB_URI=mongodb://mongodb:27017/dating_app_event_db
+      - KAFKA_BROKERS=kafka:9092
+      - USER_SERVICE_GRPC_URL=user-service:50051
+      - NOTIFICATION_SERVICE_GRPC_URL=notification-service:50054
+    depends_on:
+      - mongodb
+      - kafka
+      - zookeeper
+      - notification-service
+    volumes:
+      - ./microservices/event-service:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - app-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: dating-app-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: dating-app-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
     networks:
       - app-network
 

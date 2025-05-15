@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package event;
+
+import "google/protobuf/timestamp.proto";
+
+service EventService {
+  // Create a new event topic
+  rpc CreateEvent(CreateEventRequest) returns (CreateEventResponse);
+  
+  // Get all available event topics
+  rpc GetEvents(GetEventsRequest) returns (GetEventsResponse);
+  
+  // Subscribe a user to an event topic
+  rpc SubscribeToEvent(SubscribeToEventRequest) returns (SubscribeToEventResponse);
+  
+  // Unsubscribe a user from an event topic
+  rpc UnsubscribeFromEvent(UnsubscribeFromEventRequest) returns (UnsubscribeFromEventResponse);
+  
+  // Get events a user is subscribed to
+  rpc GetUserSubscriptions(GetUserSubscriptionsRequest) returns (GetUserSubscriptionsResponse);
+  
+  // Send a notification to all users subscribed to an event topic
+  rpc NotifyEventSubscribers(NotifyEventSubscribersRequest) returns (NotifyEventSubscribersResponse);
+}
+
+enum EventCategory {
+  UNKNOWN = 0;
+  SOCIAL = 1;      // General social gatherings
+  DATING = 2;      // Specifically for dating purposes
+  PROFESSIONAL = 3; // Networking, career events
+  HOBBY = 4;       // Hobby-related events (gaming, sports, etc.)
+  CULTURE = 5;     // Cultural events (art, music, etc.)
+}
+
+message EventTopic {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  EventCategory category = 4;
+  google.protobuf.Timestamp created_at = 5;
+  string created_by_user_id = 6;
+  int32 subscriber_count = 7;
+  bool is_active = 8;
+}
+
+message CreateEventRequest {
+  string name = 1;
+  string description = 2;
+  EventCategory category = 3;
+  string created_by_user_id = 4;
+}
+
+message CreateEventResponse {
+  bool success = 1;
+  string error = 2;
+  EventTopic event = 3;
+}
+
+message GetEventsRequest {
+  EventCategory category = 1; // Optional filter by category
+  int32 limit = 2; // Max number of events to return
+  int32 offset = 3; // Pagination offset
+}
+
+message GetEventsResponse {
+  bool success = 1;
+  string error = 2;
+  repeated EventTopic events = 3;
+  int32 total_count = 4;
+}
+
+message SubscribeToEventRequest {
+  string event_id = 1;
+  string user_id = 2;
+}
+
+message SubscribeToEventResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message UnsubscribeFromEventRequest {
+  string event_id = 1;
+  string user_id = 2;
+}
+
+message UnsubscribeFromEventResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetUserSubscriptionsRequest {
+  string user_id = 1;
+}
+
+message GetUserSubscriptionsResponse {
+  bool success = 1;
+  string error = 2;
+  repeated EventTopic events = 3;
+}
+
+message NotifyEventSubscribersRequest {
+  string event_id = 1;
+  string title = 2;
+  string message = 3;
+  map<string, string> data = 4;
+}
+
+message NotifyEventSubscribersResponse {
+  bool success = 1;
+  string error = 2;
+  int32 notifications_sent = 3;
+} 

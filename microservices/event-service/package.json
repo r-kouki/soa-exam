@@ -1,0 +1,21 @@
+{
+  "name": "event-service",
+  "version": "1.0.0",
+  "description": "Event management service for the dating app",
+  "main": "eventService.js",
+  "scripts": {
+    "start": "node eventService.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["microservice", "kafka", "event", "dating-app"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.1",
+    "@grpc/proto-loader": "^0.7.10",
+    "dotenv": "^16.4.5",
+    "google-proto-files": "^4.2.0",
+    "kafkajs": "^2.2.4",
+    "mongoose": "^8.3.2"
+  }
+}
