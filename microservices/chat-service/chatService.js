@@ -36,9 +36,66 @@ try {
 
 const chatRPCMethods = {
     getMessageHistory: async (call, callback) => {
-        console.log('GetMessageHistory called with:', call.request);
-        // TODO: Implement logic to fetch messages from ChatMessageModel based on request filters.
-        callback({ code: grpc.status.UNIMPLEMENTED, message: 'GetMessageHistory not implemented' });
+        const { chat_room_id, page_size = 20, before_message_id } = call.request;
+        console.log(`CHAT_SERVICE: GetMessageHistory called for room ${chat_room_id}, page_size: ${page_size}, before: ${before_message_id}`);
+
+        if (!chat_room_id) {
+            return callback({
+                code: grpc.status.INVALID_ARGUMENT,
+                message: 'Chat room ID is required.'
+            });
+        }
+
+        try {
+            const query = { chatRoomId: chat_room_id };
+            let sortOrder = { createdAt: -1 }; // Newest first
+
+            if (before_message_id) {
+                // Find the 'before' message to get its createdAt timestamp for cursor pagination
+                const cursorMessage = await ChatMessage.findById(before_message_id);
+                if (cursorMessage) {
+                    query.createdAt = { $lt: cursorMessage.createdAt };
+                } else {
+                    // If before_message_id is invalid, maybe return error or ignore
+                    console.warn(`CHAT_SERVICE: before_message_id ${before_message_id} not found. Fetching latest.`);
+                }
+            }
+
+            const messages = await ChatMessage.find(query)
+                .sort(sortOrder)
+                .limit(parseInt(page_size))
+                .exec();
+
+            const protoMessages = messages.map(msg => ({
+                message_id: msg._id.toString(),
+                chat_room_id: msg.chatRoomId,
+                sender_id: msg.senderId,
+                content: msg.content,
+                timestamp: {
+                    seconds: Math.floor(msg.createdAt.getTime() / 1000),
+                    nanos: (msg.createdAt.getTime() % 1000) * 1e6
+                }
+                // contentType: msg.contentType, // If you add this to proto
+            }));
+
+            let nextPageCursor = '';
+            if (messages.length > 0 && messages.length === parseInt(page_size)) {
+                // If we fetched a full page, the last message's ID is the cursor for the next page
+                nextPageCursor = messages[messages.length - 1]._id.toString();
+            }
+
+            callback(null, {
+                messages: protoMessages,
+                next_page_cursor: nextPageCursor
+            });
+
+        } catch (error) {
+            console.error('CHAT_SERVICE: Error fetching message history:', error);
+            callback({
+                code: grpc.status.INTERNAL,
+                message: 'Error fetching message history: ' + error.message
+            });
+        }
     }
 };
 

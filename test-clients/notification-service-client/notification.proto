@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package notification;
+
+import "google/protobuf/timestamp.proto";
+
+service NotificationService {
+  // Sends a notification to a user
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+}
+
+enum NotificationType {
+  UNKNOWN_TYPE = 0;
+  NEW_MATCH = 1;
+  NEW_MESSAGE = 2;
+  PROFILE_VISIT = 3; // Example
+}
+
+message NotificationPayload {
+  string title = 1;
+  string body = 2;
+  map<string, string> data = 3; // Optional extra data, e.g., match_id, chat_room_id
+}
+
+message SendNotificationRequest {
+  string user_id = 1; // The auth_id of the user to notify
+  NotificationType type = 2;
+  NotificationPayload payload = 3;
+  // google.protobuf.Timestamp schedule_at = 4; // For scheduled notifications (future)
+}
+
+message SendNotificationResponse {
+  bool success = 1;
+  string message_id = 2; // An ID for the notification attempt (could be from an external system)
+  string details = 3;    // e.g., "Notification queued for delivery" or error info
+} 

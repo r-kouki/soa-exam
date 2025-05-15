@@ -55,18 +55,20 @@ services:
       - "4000:4000"
     environment:
       - API_GATEWAY_PORT=4000
-      - USER_SERVICE_GRPC_URL=user-service:50051 # Connect to user-service by its service name
-      - MATCHING_SERVICE_GRPC_URL=matching-service:50052 # Added for future use by gateway
-      - CHAT_SERVICE_GRPC_URL=chat-service:50053 # For GetMessageHistory etc.
-      - CHAT_SERVICE_WS_URL=ws://chat-service:3001 # For frontend/client to connect to WS
-      - KEYCLOAK_URL=http://keycloak:8080 # Connect to keycloak by its service name
+      - USER_SERVICE_GRPC_URL=user-service:50051
+      - MATCHING_SERVICE_GRPC_URL=matching-service:50052
+      - CHAT_SERVICE_GRPC_URL=chat-service:50053
+      - CHAT_SERVICE_WS_URL=ws://chat-service:3001
+      - NOTIFICATION_SERVICE_GRPC_URL=notification-service:50054
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=dating-app-realm
       - KEYCLOAK_CLIENT_ID=dating-app-gateway
       - KEYCLOAK_CLIENT_SECRET=wsTFdDURHKvfEituRVBfm7ymTh72pzWk # The secret you saved
     depends_on:
       - user-service
-      - matching-service # Added dependency
-      - chat-service # Added dependency
+      - matching-service
+      - chat-service
+      - notification-service
       - keycloak
     volumes:
       - ./api-gateway:/usr/src/app
@@ -85,9 +87,11 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017/dating_app_matching_db # Uses same mongo instance, diff DB
       - MATCHING_SERVICE_PORT=50052
       - USER_SERVICE_GRPC_URL=user-service:50051 # Needs to talk to user-service
+      - NOTIFICATION_SERVICE_GRPC_URL=notification-service:50054 # For sending match notifications
     depends_on:
       - mongodb
       - user-service
+      - notification-service # Add dependency on notification-service
     volumes:
       - ./microservices/matching-service:/usr/src/app
       - /usr/src/app/node_modules
@@ -106,14 +110,25 @@ services:
       - MONGODB_URI=mongodb://mongodb:27017/dating_app_chat_db
       - CHAT_SERVICE_WS_PORT=3001
       - CHAT_SERVICE_GRPC_PORT=50053
-      # - USER_SERVICE_GRPC_URL=user-service:50051 # Uncomment if needed
-      # - MATCHING_SERVICE_GRPC_URL=matching-service:50052 # Uncomment if needed
     depends_on:
       - mongodb
-      # - user-service # Add if direct dependency for auth/user info emerges
-      # - matching-service # Add if direct dependency for match verification emerges
     volumes:
       - ./microservices/chat-service:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - app-network
+
+  notification-service:
+    build:
+      context: ./microservices/notification-service
+      dockerfile: Dockerfile
+    container_name: dating-app-notification-service
+    ports:
+      - "50054:50054" # gRPC port
+    environment:
+      - NOTIFICATION_SERVICE_GRPC_PORT=50054
+    volumes:
+      - ./microservices/notification-service:/usr/src/app
       - /usr/src/app/node_modules
     networks:
       - app-network

@@ -8,9 +8,11 @@ const Match = require('./models/MatchModel'); // Import MatchModel
 
 const MATCHING_SERVICE_PORT = process.env.MATCHING_SERVICE_PORT || 50052;
 const USER_SERVICE_GRPC_URL = process.env.USER_SERVICE_GRPC_URL || 'localhost:50051';
+const NOTIFICATION_SERVICE_GRPC_URL = process.env.NOTIFICATION_SERVICE_GRPC_URL || 'notification-service:50054';
 
 const MATCHING_PROTO_PATH = path.join(__dirname, 'proto/matching.proto');
 const USER_PROTO_PATH = path.join(__dirname, 'proto/user.proto'); // For user types and client
+const NOTIFICATION_PROTO_PATH = path.join(__dirname, 'proto/notification.proto');
 
 // Connect to MongoDB
 connectDB();
@@ -42,6 +44,36 @@ const matchingPackageDefinition = protoLoader.loadSync(MATCHING_PROTO_PATH, {
     includeDirs: [path.join(__dirname, 'proto')] // Important for resolving imports
 });
 const matchingProto = grpc.loadPackageDefinition(matchingPackageDefinition).matching;
+
+// Load notification.proto (you'll need to copy this to matching-service/proto directory)
+const notificationPackageDefinition = protoLoader.loadSync(
+    NOTIFICATION_PROTO_PATH,
+    {
+        keepCase: true,
+        longs: String,
+        enums: String,
+        defaults: true,
+        oneofs: true,
+        includeDirs: [
+            path.join(__dirname, 'proto'),
+            path.join(__dirname, 'node_modules/google-proto-files')
+        ]
+    }
+);
+const notificationProto = grpc.loadPackageDefinition(notificationPackageDefinition).notification;
+
+// Create gRPC client for Notification Service
+let notificationServiceClient = null;
+try {
+    notificationServiceClient = new notificationProto.NotificationService(
+        NOTIFICATION_SERVICE_GRPC_URL,
+        grpc.credentials.createInsecure()
+    );
+    console.log(`MATCHING_SERVICE: Connected to notification service at ${NOTIFICATION_SERVICE_GRPC_URL}`);
+} catch (error) {
+    console.error('MATCHING_SERVICE: Error loading notification proto or connecting to notification service:', error);
+    // Don't exit, just continue without notification functionality
+}
 
 // Helper to convert gRPC SwipeDirection enum string name to the DB string (they are the same in this case)
 // This function now might seem redundant if the enum string names are directly what we want to store,
@@ -151,6 +183,60 @@ const matchingServiceMethods = {
                     } catch (profileError) {
                         console.error(`Failed to fetch profile for matched user ${swiped_user_id}:`, profileError);
                     }
+                }
+            }
+
+            // Add the notification logic after this section:
+            // After the above code block and before retrieving the matched user profile
+            if (isMatch && notificationServiceClient) {
+                // Send notification to the original swiper
+                try {
+                    const matchNotification = {
+                        user_id: swiper_user_id,
+                        type: 1, // NEW_MATCH enum value
+                        payload: {
+                            title: "New Match!",
+                            body: `You matched with a user! Check it out.`,
+                            data: {
+                                match_id: newMatchId
+                            }
+                        }
+                    };
+                    
+                    notificationServiceClient.SendNotification(matchNotification, (err, response) => {
+                        if (err) {
+                            console.error(`MATCHING_SERVICE: Failed to send match notification to ${swiper_user_id}:`, err);
+                        } else {
+                            console.log(`MATCHING_SERVICE: Sent match notification to ${swiper_user_id}, message_id: ${response.message_id}`);
+                        }
+                    });
+                    
+                    // Send notification to the other user too
+                    const otherUserId = matchUserIds.find(id => id !== swiper_user_id);
+                    if (otherUserId) {
+                        const otherUserNotification = {
+                            user_id: otherUserId,
+                            type: 1, // NEW_MATCH enum value
+                            payload: {
+                                title: "New Match!",
+                                body: `Someone liked you back! You have a new match.`,
+                                data: {
+                                    match_id: newMatchId
+                                }
+                            }
+                        };
+                        
+                        notificationServiceClient.SendNotification(otherUserNotification, (err, response) => {
+                            if (err) {
+                                console.error(`MATCHING_SERVICE: Failed to send match notification to ${otherUserId}:`, err);
+                            } else {
+                                console.log(`MATCHING_SERVICE: Sent match notification to ${otherUserId}, message_id: ${response.message_id}`);
+                            }
+                        });
+                    }
+                } catch (notifError) {
+                    console.error('MATCHING_SERVICE: Error sending match notifications:', notifError);
+                    // Continue with the response, notifications are non-critical
                 }
             }
 

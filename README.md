@@ -100,6 +100,11 @@ The goal is to build a scalable and maintainable online dating platform using mi
     -   `ChatMessageModel` defined with Mongoose.
     -   Provides a basic gRPC endpoint (`GetMessageHistory`) for fetching chat history (implementation pending).
     -   WebSocket server allows clients to connect, send, and receive messages within chat rooms.
+-   **Notification Service (`microservices/notification-service`)**:
+    -   Handles the delivery of notifications to users.
+    -   Implements a gRPC service with a `SendNotification` endpoint.
+    -   Supports various notification types (`NEW_MATCH`, `NEW_MESSAGE`, `PROFILE_VISIT`).
+    -   Provides a foundation for integration with external notification systems (email, push, SMS).
 -   **Keycloak**: 
     -   Set up and running, with a realm (`dating-app-realm`) and a client (`dating-app-gateway`) configured. Not yet integrated into the API Gateway's request authentication flow.
 
@@ -112,6 +117,7 @@ graph TD
     B --> D[Matching Service (gRPC)];
     B --> E[Chat Service (gRPC/WebSocket)];
     B --> F[Keycloak (OAuth2/OIDC)];
+    B --> J[Notification Service (gRPC)];
     C --> G[(MongoDB - User DB)];
     D --> H[(MongoDB - Matching DB)];
     E --> I[(MongoDB - Chat DB)];
@@ -121,6 +127,7 @@ graph TD
         C
         D
         E
+        J
     end
 ``` 
 
@@ -135,6 +142,10 @@ graph TD
     -   Send and receive JSON messages (`{"content": "Hello!"}`).
     -   Verify message persistence in `dating_app_chat_db` in MongoDB.
     -   Test `GetMessageHistory` gRPC endpoint (once fully implemented).
+-   **Notification Service**:
+    -   Basic gRPC service for sending notifications to users.
+    -   Supports different notification types (e.g., `NEW_MATCH`, `NEW_MESSAGE`, `PROFILE_VISIT`).
+    -   Currently implements a stubbed notification delivery system.
 -   **Overall**: 
 
 ## Future Work
