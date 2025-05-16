@@ -143,7 +143,7 @@ graph TD
 
     subgraph "Authentication"
         APIGateway --> Keycloak[Keycloak <br>OAuth2/OIDC];
-        UserService --> Keycloak; // User service may validate tokens or interact with Keycloak APIs
+        UserService --> Keycloak; %% User service may validate tokens or interact with Keycloak APIs
     end
 
     subgraph "Data Storage & Messaging"
@@ -161,16 +161,16 @@ graph TD
         KafkaBroker[(Kafka)];
         Zookeeper[(Zookeeper)];
 
-        EventService --> KafkaBroker; // Event service produces to Kafka
-        KafkaBroker -. uses .-> Zookeeper; // Kafka relies on Zookeeper
+        EventService --> KafkaBroker; %% Event service produces to Kafka
+        KafkaBroker -. uses .-> Zookeeper; %% Kafka relies on Zookeeper
     end
 
     subgraph "Service Interactions"
-        MatchingService --> UserService; // For profile data
-        MatchingService --> NotificationService; // For match alerts
+        MatchingService --> UserService; %% For profile data
+        MatchingService --> NotificationService; %% For match alerts
 
-        EventService --> UserService; // For user data related to events
-        EventService --> NotificationService; // For event alerts
+        EventService --> UserService; %% For user data related to events
+        EventService --> NotificationService; %% For event alerts
     end
 
     classDef microservice fill:#D6EAF8,stroke:#3498DB,stroke-width:2px,color:#000;
