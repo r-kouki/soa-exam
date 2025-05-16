@@ -43,12 +43,13 @@ The goal is to build a scalable and maintainable online dating platform using mi
 
 ```
 .
-├── api-gateway/          # API Gateway service
+├── api-gateway/          # API Gateway service (Node.js based)
 ├── microservices/
-│   ├── user-service/       # User profile and authentication management
-│   ├── matching-service/   # Matching logic and swipe handling
-│   ├── chat-service/       # Real-time messaging
-│   └── notification-service/ # Notifications
+│   ├── user-service/       # User profile and authentication management (Node.js based)
+│   ├── matching-service/   # Matching logic and swipe handling (Node.js based)
+│   ├── chat-service/       # Real-time messaging (Node.js based)
+│   ├── notification-service/ # Notifications (Node.js based)
+│   └── event-service/      # Event management (Node.js based)
 ├── docker-compose.yml    # For local development environment
 ├── docs/                 # Project documentation (diagrams, API specs)
 └── README.md             # This file
@@ -56,8 +57,8 @@ The goal is to build a scalable and maintainable online dating platform using mi
 
 ## Technologies
 
-*   **API Gateway**: (To be decided, e.g., Apollo Server with Express for GraphQL, Spring Cloud Gateway, Kong, or Python-based like FastAPI/Flask with appropriate libraries)
-*   **Microservices**: (Language/Framework TBD - e.g., Python with FastAPI/Flask, Node.js with Express, Java with Spring Boot)
+*   **API Gateway**: Node.js based (e.g., Express with Apollo Server for GraphQL).
+*   **Microservices**: Node.js based (e.g., using Express or Fastify, with gRPC for inter-service communication).
     *   `user-service`
     *   `matching-service`
     *   `chat-service`
@@ -65,8 +66,8 @@ The goal is to build a scalable and maintainable online dating platform using mi
     *   `event-service`
 *   **gRPC**: For high-performance, type-safe inter-service communication.
 *   **REST/GraphQL**: For client-facing APIs via the API Gateway.
-*   **Databases**: (To be decided, e.g., PostgreSQL for relational data like user profiles, MongoDB for flexible data like chat messages or matching preferences, Redis for caching/session management)
-*   **Message Broker**: (e.g., Kafka for event streaming, RabbitMQ for task queues)
+*   **Databases**: MongoDB (used as a central instance with separate logical databases for services).
+*   **Message Broker**: Kafka (for event streaming, with Zookeeper for coordination).
 *   **Real-time Communication (for Chat)**: WebSockets.
 *   **Authentication**: Keycloak.
 
@@ -130,47 +131,62 @@ The goal is to build a scalable and maintainable online dating platform using mi
 
 ```mermaid
 graph TD
-    A[Client App] --> B{API Gateway <br>GraphQL};
-    B --> C[User Service <br>gRPC];
-    B --> D[Matching Service <br>gRPC];
-    B --> E[Chat Service <br>gRPC/WebSocket];
-    B --> F[Keycloak <br>OAuth2/OIDC];
-    B --> J[Notification Service <br>gRPC];
-    B --> K[Event Service <br>gRPC];
-    C --> G[(MongoDB - User DB)];
-    D --> H[(MongoDB - Matching DB)];
-    E --> I[(MongoDB - Chat DB)];
-    J --> J1[(MongoDB <br>Notification Store)];
-    K --> K1[(MongoDB - Event DB)];
-    
-    D --> J;
-    K --> J;
-    K <--> M[(Kafka)];
-    M <--> N[Zookeeper];
-    
-    F --> G;
+    ClientApp[Client App] --> APIGateway{API Gateway <br>GraphQL/REST};
 
-    subgraph Microservices
-        C
-        D
-        E
-        J
-        K
+    subgraph "Core Services"
+        APIGateway --> UserService[User Service <br>gRPC/REST];
+        APIGateway --> MatchingService[Matching Service <br>gRPC];
+        APIGateway --> ChatService[Chat Service <br>gRPC/WebSocket];
+        APIGateway --> NotificationService[Notification Service <br>gRPC];
+        APIGateway --> EventService[Event Service <br>gRPC];
     end
-    
-    subgraph Databases
-        G
-        H
-        I
-        J1
-        K1
+
+    subgraph "Authentication"
+        APIGateway --> Keycloak[Keycloak <br>OAuth2/OIDC];
+        UserService --> Keycloak; // User service may validate tokens or interact with Keycloak APIs
     end
-    
-    subgraph "Message Broker"
-        M
-        N
+
+    subgraph "Data Storage & Messaging"
+        MongoDBInstance[(MongoDB Instance)];
+        UserService --> UserDB[dating_app_user_db];
+        MatchingService --> MatchingDB[dating_app_matching_db];
+        ChatService --> ChatDB[dating_app_chat_db];
+        EventService --> EventDB[dating_app_event_db];
+
+        UserDB -- in --> MongoDBInstance;
+        MatchingDB -- in --> MongoDBInstance;
+        ChatDB -- in --> MongoDBInstance;
+        EventDB -- in --> MongoDBInstance;
+
+        KafkaBroker[(Kafka)];
+        Zookeeper[(Zookeeper)];
+
+        EventService --> KafkaBroker; // Event service produces to Kafka
+        KafkaBroker -. uses .-> Zookeeper; // Kafka relies on Zookeeper
     end
-``` 
+
+    subgraph "Service Interactions"
+        MatchingService --> UserService; // For profile data
+        MatchingService --> NotificationService; // For match alerts
+
+        EventService --> UserService; // For user data related to events
+        EventService --> NotificationService; // For event alerts
+    end
+
+    classDef microservice fill:#D6EAF8,stroke:#3498DB,stroke-width:2px,color:#000;
+    classDef supportservice fill:#E8DAEF,stroke:#8E44AD,stroke-width:2px,color:#000;
+    classDef database fill:#D5F5E3,stroke:#2ECC71,stroke-width:2px,color:#000;
+    classDef client fill:#FDEDEC,stroke:#E74C3C,stroke-width:2px,color:#000;
+    classDef datastore fill:#FDEBD0,stroke:#F39C12,stroke-width:2px,color:#000;
+
+
+    class ClientApp client;
+    class APIGateway,UserService,MatchingService,ChatService,NotificationService,EventService microservice;
+    class Keycloak supportservice;
+    class KafkaBroker,Zookeeper supportservice;
+    class MongoDBInstance datastore;
+    class UserDB,MatchingDB,ChatDB,EventDB database;
+```
 
 ### Testing Notes
 
